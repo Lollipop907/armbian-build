@@ -31,7 +31,7 @@ jobs:
 
        - name: Get changed files
          id: changed-files
-         uses: tj-actions/changed-files@v35
+         uses: tj-actions/changed-files@v37
 
        - name: Checkout repository
          uses: actions/checkout@v3
@@ -42,5 +42,7 @@ jobs:
        - name: Check kernel config for security issues
          run: |
            for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
-               kconfig-hardened-check/bin/kconfig-hardened-check -m show_fail -c $file | sed -e 's/^/    /' >> $GITHUB_STEP_SUMMARY
+               if [[  "${file}" = config/kernel/*.config ]]; then
+                   kconfig-hardened-check/bin/kconfig-hardened-check -m show_fail -c $file | sed -e 's/^/    /' >> $GITHUB_STEP_SUMMARY
+               fi
            done
