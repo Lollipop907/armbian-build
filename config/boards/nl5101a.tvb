@@ -1,0 +1,9 @@
+# Rockchip RK3399 hexa core 2GB SoC GBE eMMC USB3
+BOARD_NAME="NL-5101A"
+BOARDFAMILY="rockchip64"
+BOOTCONFIG="nl5101a-rk3399_defconfig"
+KERNEL_TARGET="current"
+FULL_DESKTOP="yes"
+BOOT_LOGO="desktop"
+BOOT_FDT_FILE="rockchip/rk3399-nl5101a.dtb"
+BOOT_SUPPORT_SPI=yes
