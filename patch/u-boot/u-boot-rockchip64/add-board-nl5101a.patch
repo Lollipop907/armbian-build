@@ -35,7 +35,7 @@ new file mode 100755
 index 000000000..dc1b8af19
 --- /dev/null
 +++ b/arch/arm/dts/rk3399-nl5101a.dts
-@@ -0,0 +1,662 @@
+@@ -0,0 +1,655 @@
 +// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 +
 +/dts-v1/;
@@ -188,7 +188,6 @@ index 000000000..dc1b8af19
 +};
 +
 +&hdmi {
-+	ddc-i2c-bus = <&i2c3>;
 +	pinctrl-names = "default";
 +	pinctrl-0 = <&hdmi_i2c_xfer &hdmi_cec>;
 +	status = "okay";
@@ -428,12 +427,6 @@ index 000000000..dc1b8af19
 +			regulator-off-in-suspend;
 +		};
 +	};
-+};
-+
-+&i2c3 {
-+	i2c-scl-rising-time-ns = <450>;
-+	i2c-scl-falling-time-ns = <15>;
-+	status = "okay";
 +};
 +
 +&i2c4 {

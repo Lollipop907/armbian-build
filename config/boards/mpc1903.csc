@@ -11,3 +11,5 @@ FULL_DESKTOP="yes"
 BOOT_LOGO="desktop"
 SRC_EXTLINUX="yes"
 SRC_CMDLINE="console=ttyS2,1500000 console=tty0"
+BOOT_SCENARIO="tpl-spl-blob"
+BOOT_SUPPORT_SPI=yes
