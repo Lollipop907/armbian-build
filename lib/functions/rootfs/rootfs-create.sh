@@ -72,6 +72,14 @@ function create_new_rootfs_cache_via_debootstrap() {
 		"'--components=${AGGREGATED_DEBOOTSTRAP_COMPONENTS_COMMA}'" # from aggregation.py
 	)
 
+	# Hacking debootstrap to support future releases as symlink is often the only change, so we don't need to bump host OS
+	# This functionality is coming with debootstrap v1.0.128 (Mantic)
+	local debootstrap_home="/usr/share/debootstrap/scripts"
+	if [[ ! -L "${debootstrap_home}/${RELEASE}" && ! -e "${debootstrap_home}/${RELEASE}" ]]; then
+		display_alert "Making symlink as host deboostrap is missing it" "" "wrn"
+		run_host_command_logged ln -s "${DEBOOTSTRAP_SOURCE}" "${debootstrap_home}/${RELEASE}"
+	fi
+
 	# Small detour for local apt caching option.
 	local_apt_deb_cache_prepare "before debootstrap" # sets LOCAL_APT_CACHE_INFO
 	if [[ "${LOCAL_APT_CACHE_INFO[USE]}" == "yes" ]]; then
@@ -79,20 +87,6 @@ function create_new_rootfs_cache_via_debootstrap() {
 	fi
 
 	deboostrap_arguments+=("--foreign") # release name
-
-	# Debian does not carry riscv64 in their main repo, needs ports, which needs a specific keyring in the host.
-	# that's done in prepare-host.sh when by adding debian-ports-archive-keyring hostdep, but there's an if anyway.
-	# debian-ports-archive-keyring is also included in-image by: config/optional/architectures/riscv64/_config/cli/_all_distributions/main/packages
-	# Revise this after bookworm release.
-	# @TODO: rpardini: this clearly shows a need for hooks for debootstrap
-	if [[ "${ARCH}" == "riscv64" ]] && [[ $DISTRIBUTION == Debian ]]; then
-		if [[ -f /usr/share/keyrings/debian-ports-archive-keyring.gpg ]]; then
-			display_alert "Adding ports keyring for Debian debootstrap" "riscv64" "info"
-			deboostrap_arguments+=("--keyring" "/usr/share/keyrings/debian-ports-archive-keyring.gpg")
-		else
-			exit_with_error "Debian debootstrap for riscv64 needs debian-ports-archive-keyring hostdep"
-		fi
-	fi
 
 	deboostrap_arguments+=("${RELEASE}" "${SDCARD}/" "${debootstrap_apt_mirror}") # release, path and mirror; always last, positional arguments.
 
@@ -184,6 +178,10 @@ function create_new_rootfs_cache_via_debootstrap() {
 	# Now do the install, all packages should have been downloaded by now
 	chroot_sdcard_apt_get_install "${AGGREGATED_PACKAGES_ROOTFS[@]}"
 
+	# Systemd resolver is not working yet
+	run_host_command_logged rm -v "${SDCARD}"/etc/resolv.conf
+	run_host_command_logged echo "nameserver $NAMESERVER" ">" "${SDCARD}"/etc/resolv.conf
+
 	if [[ $BUILD_DESKTOP == "yes" ]]; then
 		# how how many items in AGGREGATED_PACKAGES_DESKTOP array
 		display_alert "Installing ${#AGGREGATED_PACKAGES_DESKTOP[@]} desktop packages" "${RELEASE} ${DESKTOP_ENVIRONMENT}" "info"
@@ -200,9 +198,12 @@ function create_new_rootfs_cache_via_debootstrap() {
 	fi
 
 	# stage: check md5 sum of installed packages. Just in case. @TODO: rpardini: this should also be done when a cache is used, not only when it is created
-	display_alert "Checking MD5 sum of installed packages" "debsums" "info"
-	declare -g if_error_detail_message="Check MD5 sum of installed packages failed"
-	chroot_sdcard debsums --silent
+	# lets check only for supported targets only unless forced
+	if [[ "${DISTRIBUTION_STATUS}" == "supported" || "${FORCE_CHECK_MD5_PACKAGES:-"no"}" == "yes" ]]; then
+		display_alert "Checking MD5 sum of installed packages" "debsums" "info"
+		declare -g if_error_detail_message="Check MD5 sum of installed packages failed"
+		chroot_sdcard debsums --silent
+	fi
 
 	# # Remove packages from packages.uninstall
 	# # @TODO: aggregation.py handling of this... if we wanted it removed in rootfs cache, why did we install it in the first place?
@@ -233,8 +234,11 @@ function create_new_rootfs_cache_via_debootstrap() {
 	run_host_command_logged echo "nameserver $NAMESERVER" ">" "${SDCARD}"/etc/resolv.conf
 
 	# Remove `machine-id` (https://www.freedesktop.org/software/systemd/man/machine-id.html)
-	# Note: This will mark machine `firstboot`
-	run_host_command_logged echo "uninitialized" ">" "${SDCARD}/etc/machine-id"
+	# Note: As we don't use systemd-firstboot.service functionality, we make it empty to prevent services
+	# from starting up automatically on first boot on system version 2.50+. If someone is using the same,
+	# please reinitialize this to uninitialized. Do note that systemd will start all services then by
+	# default and that has to be handled in by setting system presets.
+	run_host_command_logged echo -n ">" "${SDCARD}/etc/machine-id"
 	run_host_command_logged rm -v "${SDCARD}/var/lib/dbus/machine-id"
 
 	# Mask `systemd-firstboot.service` which will prompt locale, timezone and root-password too early.

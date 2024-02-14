@@ -20,6 +20,7 @@ from unidecode import unidecode
 from unidiff import PatchSet
 
 from common.patching_config import PatchingConfig
+from common.term_colors import background_dark_or_light
 
 MAGIC_MBOX_MARKER_STANDARD = "Mon Sep 17 00:00:00 2001"
 MAGIC_MBOX_MARKER_B4 = "git@z Thu Jan  1 00:00:00 1970"
@@ -121,6 +122,7 @@ class PatchFileInDir:
 		self.file_name_no_ext_no_dirs = os.path.basename(self.relative_dirs_and_base_file_name)
 		self.from_series = False
 		self.series_counter = None
+		self.multiple_patches_in_file = False
 
 	def __str__(self) -> str:
 		desc: str = f"<PatchFileInDir: file_name:'{self.file_name}', dir:{self.patch_dir.__str__()} >"
@@ -215,6 +217,10 @@ class PatchFileInDir:
 		# sanity check, throw exception if there are no patches
 		if len(patches) == 0:
 			raise Exception("No valid patches found in file " + self.full_file_path())
+
+		if (len(patches) > 1):
+			self.multiple_patches_in_file = True
+
 		return patches
 
 	@staticmethod
@@ -240,8 +246,11 @@ class PatchFileInDir:
 		log.info(f"Rewriting {output_file} with new patches...")
 		with open(output_file, "w") as f:
 			for patch in patches:
-				log.info(f"Writing patch {patch.counter} to {output_file}...")
-				f.write(patch.rewritten_patch)
+				if patch.parent.patch_dir.is_autogen_dir:
+					log.debug(f"Skipping autogen patch {patch.counter} in file {output_file}...")
+				else:
+					log.info(f"Writing patch {patch.counter} to {output_file}...")
+					f.write(patch.rewritten_patch)
 
 
 # Placeholder for future manual work
@@ -504,6 +513,10 @@ class PatchInPatchFile:
 				final_files_to_add = [f for f in all_files_to_add if f not in do_not_commit_files]
 				final_files_to_add = [f for f in final_files_to_add if not any(re.match(r, f) for r in do_not_commit_regexes)]
 				log.debug(f"Adding (post-config) {len(final_files_to_add)} files to git: {' '.join(final_files_to_add)}")
+				if len(final_files_to_add) == 0:
+					log.warning(f"There are 0 files to commit post-config. The whole patch should be removed.")
+					self.problems.append("no_files_to_commit_after_config")
+					return None
 				repo.git.add("-f", final_files_to_add)
 
 		if self.failed_to_parse or self.parent.patch_dir.is_autogen_dir or add_all_changes_in_git:
@@ -691,8 +704,12 @@ class PatchInPatchFile:
 				color = "yellow"
 			else:
 				color = "red"
+		bold = 'bold dim' if background_dark_or_light() == 'light' else 'bold'
 		# @TODO: once our ansi-haste supports it, use [link url=file://blaaa]
-		return f"[bold {color}]{self.markdown_name(skip_markdown=True)}"
+		if self.parent.multiple_patches_in_file:
+			return f"[{bold}][{color}]{self.markdown_name(skip_markdown=True)}[/{bold}](:{self.counter})"
+		else:
+			return f"[{bold} {color}]{self.markdown_name(skip_markdown=True)}"
 
 	def rich_patch_output(self):
 		ret = self.patch_output
@@ -701,10 +718,11 @@ class PatchInPatchFile:
 			'yellow': ['with fuzz', 'offset ', ' hunks ignored', ' hunk ignored'],
 			'red': ['hunk FAILED', 'hunks FAILED']
 		}
+		bold = 'bold dim' if background_dark_or_light() == 'light' else 'bold'
 		# use Rich's syntax highlighting to highlight with color
 		for color in color_tags:
 			for tag in color_tags[color]:
-				ret = ret.replace(tag, f"[bold {color}]{tag}[/bold {color}]")
+				ret = ret.replace(tag, f"[{bold} {color}]{tag}[/{bold} {color}]")
 		return ret
 
 	def apply_patch_date_to_files(self, working_dir, options):
@@ -790,6 +808,7 @@ def export_commit_as_patch(repo: git.Repo, commit: str):
 		'--zero-commit',  # do not use the git revision, instead 000000...0000
 		'--stat=120',  # 'wider' stat output; default is 80
 		'--stat-graph-width=10',  # shorten the diffgraph graph part, it's too long
+        '--abbrev=12', # force index length to 12
 		"-1", "--stdout", commit
 	],
 		cwd=repo.working_tree_dir,

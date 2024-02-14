@@ -63,7 +63,7 @@ function extension_prepare_config__prepare_grub_standard() {
 
 	if [[ "${DISTRO_GENERIC_KERNEL}" == "yes" ]]; then
 		declare -g IMAGE_INSTALLED_KERNEL_VERSION="${DISTRO_KERNEL_VER}"
-		unset KERNELSOURCE                     # This should make Armbian skip most stuff. At least, I hacked it to.
+		declare -g KERNELSOURCE='none'         # We need to be explicit we don't want a kernel built.
 		declare -g INSTALL_ARMBIAN_FIRMWARE=no # Should skip build and install of Armbian-firmware.
 	else
 		declare -g KERNELDIR="linux-uefi-${LINUXFAMILY}" # Avoid sharing a source tree with others, until we know it's safe.
@@ -79,8 +79,6 @@ function extension_prepare_config__prepare_grub_standard() {
 	display_alert "${UEFI_GRUB} activating" "GRUB with SERIALCON=${SERIALCON}; timeout ${UEFI_GRUB_TIMEOUT}; BIOS=${UEFI_GRUB_TARGET_BIOS}" ""
 }
 
-# @TODO: extract u-boot into an extension, so that core bsps don't have this stuff in there to begin with.
-# @TODO: this code is duplicated in flash-kernel.sh extension, so another reason to refactor the root of the evil
 function post_family_tweaks_bsp__remove_uboot_grub() {
 	if [[ "${UEFI_GRUB}" == "skip" ]]; then
 		display_alert "Skipping remove uboot from BSP" "due to UEFI_GRUB:${UEFI_GRUB}" "debug"
@@ -178,6 +176,14 @@ pre_umount_final_image__install_grub() {
 
 	display_alert "Creating GRUB config..." "grub-mkconfig" ""
 	chroot_custom "$chroot_target" update-grub || {
+		display_alert "GRUB grub-mkconfig failed" "update-grub failed; dumping full config" "err"
+
+		declare -a mkconfig_input_files=()
+		mkconfig_input_files+=("${MOUNT}/etc/default/grub")
+		mkconfig_input_files+=("${MOUNT}/etc/default/grub.d/"*) # expands!
+		mkconfig_input_files+=("${MOUNT}/etc/grub.d/"*)         # same for /etc/grub.d; expands!
+		run_tool_batcat "${mkconfig_input_files[@]}"
+
 		exit_with_error "update-grub failed!"
 	}
 

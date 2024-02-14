@@ -38,10 +38,7 @@ function prepare_partitions() {
 	parttype[xfs]=xfs
 	# parttype[nfs] is empty
 
-	# metadata_csum and 64bit may need to be disabled explicitly when migrating to newer supported host OS releases
-	if [[ $HOSTRELEASE =~ buster|bullseye|bookworm|sid|focal|impish|hirsute|jammy|kinetic|lunar|ulyana|ulyssa|uma|una|vanessa|vera ]]; then
-		mkopts[ext4]="-q -m 2 -O ^64bit,^metadata_csum"
-	fi
+	mkopts[ext4]="-q -m 2" # for a long time we had '-O ^64bit,^metadata_csum' here
 	# mkopts[fat] is empty
 	mkopts[ext2]=''
 	# mkopts[f2fs] is empty
@@ -101,7 +98,8 @@ function prepare_partitions() {
 		local uefipart=$((next++))
 	fi
 	# Check if we need boot partition
-	if [[ -n $BOOTFS_TYPE || $ROOTFS_TYPE != ext4 || $CRYPTROOT_ENABLE == yes ]]; then
+	# Specialized storage extensions like cryptroot or lvm may require a boot partition
+	if [[ $BOOTSIZE != "0" && ( -n $BOOTFS_TYPE || $ROOTFS_TYPE != ext4 || $BOOTPART_REQUIRED == yes ) ]]; then
 		local bootpart=$((next++))
 		local bootfs=${BOOTFS_TYPE:-ext4}
 		[[ -z $BOOTSIZE || $BOOTSIZE -le 8 ]] && BOOTSIZE=${DEFAULT_BOOTSIZE}
@@ -132,7 +130,7 @@ function prepare_partitions() {
 		display_alert "Using user-defined image size" "$FIXED_IMAGE_SIZE MiB" "info"
 		sdsize=$FIXED_IMAGE_SIZE
 		# basic sanity check
-		if [[ $ROOTFS_TYPE != nfs && $sdsize -lt $rootfs_size ]]; then
+		if [[ $ROOTFS_TYPE != nfs && $ROOTFS_TYPE != btrfs && $sdsize -lt $rootfs_size ]]; then
 			exit_with_error "User defined image size is too small" "$sdsize <= $rootfs_size"
 		fi
 	else
@@ -242,15 +240,10 @@ function prepare_partitions() {
 	if [[ -n $rootpart ]]; then
 		local rootdevice="${LOOP}p${rootpart}"
 
-		if [[ $CRYPTROOT_ENABLE == yes ]]; then
-			check_loop_device "$rootdevice"
-			display_alert "Encrypting root partition with LUKS..." "cryptsetup luksFormat $rootdevice" ""
-			echo -n $CRYPTROOT_PASSPHRASE | cryptsetup luksFormat $CRYPTROOT_PARAMETERS $rootdevice -
-			echo -n $CRYPTROOT_PASSPHRASE | cryptsetup luksOpen $rootdevice $ROOT_MAPPER -
-			display_alert "Root partition encryption complete." "" "ext"
-			# TODO: pass /dev/mapper to Docker
-			rootdevice=/dev/mapper/$ROOT_MAPPER # used by `mkfs` and `mount` commands
-		fi
+		call_extension_method "prepare_root_device" <<- 'PREPARE_ROOT_DEVICE'
+			*Specialized storage extensions typically transform the root device into a mapped device and should hook in here *
+			At this stage ${rootdevice} has been defined pointing to a loop device partition. Extensions that map the root device must update rootdevice accordingly.
+		PREPARE_ROOT_DEVICE
 
 		check_loop_device "$rootdevice"
 		display_alert "Creating rootfs" "$ROOTFS_TYPE on $rootdevice"
@@ -298,7 +291,15 @@ function prepare_partitions() {
 		run_host_command_logged mkfs.fat -F32 -n "${UEFI_FS_LABEL^^}" ${LOOP}p${uefipart} 2>&1 # "^^" makes variable UPPERCASE, required for FAT32.
 		mkdir -p "${MOUNT}${UEFI_MOUNT_POINT}"
 		run_host_command_logged mount ${LOOP}p${uefipart} "${MOUNT}${UEFI_MOUNT_POINT}"
-		echo "UUID=$(blkid -s UUID -o value ${LOOP}p${uefipart}) ${UEFI_MOUNT_POINT} vfat defaults 0 2" >> $SDCARD/etc/fstab
+
+		# Allow skipping the fstab entry for the EFI partition if UEFI_MOUNT_POINT_SKIP_FSTAB=yes; add comments instead if so
+		if [[ "${UEFI_MOUNT_POINT_SKIP_FSTAB:-"no"}" == "yes" ]]; then
+			display_alert "Skipping EFI partition in fstab" "UEFI_MOUNT_POINT_SKIP_FSTAB=${UEFI_MOUNT_POINT_SKIP_FSTAB}" "debug"
+			echo "# /boot/efi fstab commented out due to UEFI_MOUNT_POINT_SKIP_FSTAB=${UEFI_MOUNT_POINT_SKIP_FSTAB}"
+			echo "# UUID=$(blkid -s UUID -o value ${LOOP}p${uefipart}) ${UEFI_MOUNT_POINT} vfat defaults 0 2" >> $SDCARD/etc/fstab
+		else
+			echo "UUID=$(blkid -s UUID -o value ${LOOP}p${uefipart}) ${UEFI_MOUNT_POINT} vfat defaults 0 2" >> $SDCARD/etc/fstab
+		fi
 	fi
 
 	display_alert "Writing /tmp as tmpfs in chroot fstab" "$SDCARD/etc/fstab" "debug"

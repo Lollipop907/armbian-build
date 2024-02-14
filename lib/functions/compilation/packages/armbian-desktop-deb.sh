@@ -46,7 +46,6 @@ function compile_armbian-desktop() {
 		Priority: optional
 		Recommends: ${AGGREGATED_PACKAGES_DESKTOP_COMMA}, armbian-bsp-desktop
 		Provides: armbian-${RELEASE}-desktop
-		Conflicts: gdm3
 		Description: Armbian desktop for ${DISTRIBUTION} ${RELEASE} ${DESKTOP_ENVIRONMENT}
 	EOF
 
@@ -58,8 +57,7 @@ function compile_armbian-desktop() {
 	eval "${AGGREGATED_DESKTOP_CREATE_DESKTOP_PACKAGE}"
 	display_alert "Running desktop-specific aggregated prepare script" "AGGREGATED_DESKTOP_CREATE_DESKTOP_PACKAGE" "debug"
 
-	mkdir -p "${DEB_STORAGE}/${RELEASE}"
-	fakeroot_dpkg_deb_build "${destination}" "${DEB_STORAGE}/${RELEASE}"
+	dpkg_deb_build "${destination}" "armbian-desktop"
 
 	done_with_temp_dir "${cleanup_id}" # changes cwd to "${SRC}" and fires the cleanup function early
 }

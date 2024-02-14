@@ -54,7 +54,7 @@ function run_tool_batcat() {
 
 	declare BATCAT_FN="bat-v${BATCAT_VERSION}-${BATCAT_ARCH_OS}"
 	declare BATCAT_FN_TARXZ="${BATCAT_FN}.tar.gz"
-	declare DOWN_URL="https://github.com/sharkdp/bat/releases/download/v${BATCAT_VERSION}/${BATCAT_FN_TARXZ}"
+	declare DOWN_URL="${GITHUB_SOURCE:-"https://github.com"}/sharkdp/bat/releases/download/v${BATCAT_VERSION}/${BATCAT_FN_TARXZ}"
 	declare BATCAT_BIN="${DIR_BATCAT}/${BATCAT_FN}-bin"
 	declare ACTUAL_VERSION
 
@@ -96,8 +96,12 @@ function run_tool_batcat() {
 	if [[ "${bat_cat_columns}" -lt 60 ]]; then               # but lever less than 60
 		bat_cat_columns=60
 	fi
+	case "${background_dark_or_light}" in
+		dark)	declare bat_cat_theme="Dracula" ;;
+		*)	declare bat_cat_theme="ansi" ;;
+	esac
 	display_alert "Calling batcat" "COLUMNS: ${bat_cat_columns} | $*" "debug"
-	BAT_CONFIG_DIR="${DIR_BATCAT}/config" BAT_CACHE_PATH="${DIR_BATCAT}/cache" "${BATCAT_BIN}" --theme "Dracula" --paging=never --force-colorization --wrap auto --terminal-width "${bat_cat_columns}" "$@"
+	BAT_CONFIG_DIR="${DIR_BATCAT}/config" BAT_CACHE_PATH="${DIR_BATCAT}/cache" "${BATCAT_BIN}" --theme "${bat_cat_theme}" --paging=never --force-colorization --wrap auto --terminal-width "${bat_cat_columns}" "$@"
 	wait_for_disk_sync "after running batcat"
 }
 
@@ -116,7 +120,7 @@ function try_download_batcat_tooling() {
 	run_host_command_logged rm -rf "${BATCAT_BIN}.tar.gz"
 
 	# EXTRA: get more syntaxes for batcat. We need Debian syntax for CONTROL files, etc.
-	run_host_command_logged wget --no-verbose --progress=dot:giga -O "${DIR_BATCAT}/sublime-debian.tar.gz.tmp" "https://github.com/barnumbirr/sublime-debian/archive/refs/heads/master.tar.gz"
+	run_host_command_logged wget --no-verbose --progress=dot:giga -O "${DIR_BATCAT}/sublime-debian.tar.gz.tmp" "${GITHUB_SOURCE:-"https://github.com"}/barnumbirr/sublime-debian/archive/refs/heads/master.tar.gz"
 	run_host_command_logged mkdir -p "${DIR_BATCAT}/temp-debian-syntax"
 	run_host_command_logged tar -xzf "${DIR_BATCAT}/sublime-debian.tar.gz.tmp" -C "${DIR_BATCAT}/temp-debian-syntax" sublime-debian-master/Syntaxes
 

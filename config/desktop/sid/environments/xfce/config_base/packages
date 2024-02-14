@@ -1,6 +1,5 @@
 anacron
 apt-xapian-index
-ayatana-indicator-printers
 blueman
 bluez
 bluez-cups
@@ -23,7 +22,7 @@ fonts-ubuntu
 fonts-ubuntu-console
 foomatic-db-compressed-ppds
 gdebi
-ghostscript-x
+gnome-calculator
 gnome-font-viewer
 gnome-disk-utility
 gnome-screenshot
