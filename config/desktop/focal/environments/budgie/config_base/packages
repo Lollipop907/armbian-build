@@ -114,8 +114,7 @@ libproxy1-plugin-networkmanager
 libu2f-udev
 libwmf0.2-7-gtk
 libxcursor1
-lightdm
-lightdm-settings
+gdm3
 mesa-utils
 mousepad
 mousetweaks
@@ -148,7 +147,6 @@ profile-sync-daemon
 pulseaudio-module-bluetooth
 redshift
 samba
-slick-greeter
 smbclient
 software-properties-gtk
 spice-vdagent

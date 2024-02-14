@@ -13,14 +13,32 @@ BOOTSCRIPT='boot-rockchip64.cmd:boot.cmd'
 BOOTENV_FILE='rockchip64.txt'
 UBOOT_TARGET_MAP=";;idbloader.bin uboot.img trust.bin"
 BOOTDELAY=0
-OVERLAY_PREFIX='rockchip'
+OVERLAY_PREFIX="${OVERLAY_PREFIX:-"rockchip"}" # default to 'rockchip' if not set by board
 SERIALCON=${SERIALCON:=$([ "${BRANCH}" == "legacy" ] && echo "ttyFIQ0:1500000" || echo "ttyS2:1500000")}
 GOVERNOR="ondemand"
 ATFPATCHDIR='atf-rockchip64'
 BOOTPATCHDIR="${BOOTPATCHDIR:-"u-boot-rockchip64"}"
 PACKAGE_LIST_FAMILY="ethtool"
-
 RKBIN_DIR="$SRC/cache/sources/rkbin-tools"
+
+# Important, we don't set LINUXFAMILY and LINUXCONFIG -- unless it is current or edge. Specifically, we don't do it for legacy branches, which are used by BOARDFAMILY's other than rockchip64.
+
+case $BRANCH in
+
+	current)
+		declare -g KERNEL_MAJOR_MINOR="6.6"
+		declare -g LINUXFAMILY=rockchip64
+		declare -g LINUXCONFIG='linux-rockchip64-'$BRANCH
+		;;
+
+	edge)
+		declare -g KERNEL_MAJOR_MINOR="6.7"
+		declare -g LINUXFAMILY=rockchip64
+		declare -g LINUXCONFIG='linux-rockchip64-'$BRANCH
+		;;
+esac
+
+# rockchip64 (used mainly for RK3399) legacy kernel 4.4 is dead code
 
 # Common variables:
 # BOOT_SCENARIO - determines which tpl (ddrbin), spl and ATF combination to use
@@ -51,71 +69,65 @@ fi
 
 CPUMIN=${CPUMIN:="408000"}
 
-if [[ $BOOT_SOC == rk3399 ]]; then
-
-	CPUMAX=${CPUMAX:="2016000"}
-
-elif [[ $BOOT_SOC == rk3328 || $BOOT_SOC == rk3308 ]]; then
-
-	CPUMAX=${CPUMAX:="1296000"}
-
-elif [[ "${BOOT_SOC}" == rk3566 ]]; then
-
-	CPUMAX=${CPUMAX:="1800000"}
-
-elif [[ "${BOOT_SOC}" == rk3568 ]]; then
-
-	CPUMAX=${CPUMAX:="1992000"}
-
-fi
-
 # BOOT_SOC_MKIMAGE defaults to BOOT_SOC, but can be overriden. See rk3566
 declare -g BOOT_SOC_MKIMAGE="${BOOT_SOC}"
 
-if [[ $BOOT_SOC == rk3328 ]]; then
-
+case "$BOOT_SOC" in
+ rk3328)
+	CPUMAX=${CPUMAX:="1296000"}
 	BOOT_SCENARIO="${BOOT_SCENARIO:=only-blobs}"
 	DDR_BLOB="${DDR_BLOB:-"rk33/rk3328_ddr_333MHz_v1.16.bin"}"
 	MINILOADER_BLOB="${MINILOADER_BLOB:-"rk33/rk322xh_miniloader_v2.50.bin"}"
 	BL31_BLOB="${BL31_BLOB:-"rk33/rk322xh_bl31_v1.44.elf"}"
+;;
 
-elif [[ $BOOT_SOC == rk3399 ]]; then
-
+ rk3399)
+	CPUMAX=${CPUMAX:="2016000"}
 	BOOT_SCENARIO="${BOOT_SCENARIO:=only-blobs}"
 	DDR_BLOB="${DDR_BLOB:-"rk33/rk3399_ddr_933MHz_v1.25.bin"}"
 	MINILOADER_BLOB="${MINILOADER_BLOB:-"rk33/rk3399_miniloader_v1.26.bin"}"
 	BL31_BLOB="${BL31_BLOB:-"rk33/rk3399_bl31_v1.35.elf"}"
+;;
 
-elif [[ $BOOT_SOC == rk3399pro ]]; then
-
+ rk3399pro)
+	CPUMAX=${CPUMAX:="2016000"}
 	BOOT_SCENARIO="${BOOT_SCENARIO:=only-blobs}"
 	DDR_BLOB="${DDR_BLOB:-"rk33/rk3399pro_npu_ddr_933MHz_v1.02.bin"}"
 	MINILOADER_BLOB="${MINILOADER_BLOB:-"rk33/rk3399pro_miniloader_v1.26.bin"}"
 	BL31_BLOB="${BL31_BLOB:-"rk33/rk3399pro_bl31_v1.35.elf"}"
+;;
 
-elif [[ $BOOT_SOC == rk3566 ]]; then
+ rk3528)
+	CPUMAX=${CPUMAX:="2016000"}
+	BOOT_SCENARIO="${BOOT_SCENARIO:=spl-blobs}"
+	DDR_BLOB="${DDR_BLOB:-"rk35/rk3528_ddr_1056MHz_v1.06.bin"}"
+	BL31_BLOB="${BL31_BLOB:-"rk35/rk3528_bl31_v1.16.elf"}"
+;;
 
+ rk3566)
+	CPUMAX=${CPUMAX:="1800000"}
 	BOOT_SCENARIO="${BOOT_SCENARIO:=spl-blobs}"
 	DDR_BLOB="${DDR_BLOB:-"rk35/rk3566_ddr_1056MHz_v1.10.bin"}"
 	BL31_BLOB="${BL31_BLOB:-"rk35/rk3568_bl31_v1.29.elf"}"
 	BOOT_SOC_MKIMAGE="rk3568" # mkimage does not know about rk3566, and rk3568 works.
+;;
 
-elif [[ $BOOT_SOC == rk3568 ]]; then
-
+ rk3568)
+	CPUMAX=${CPUMAX:="1992000"}
 	BOOT_SCENARIO="${BOOT_SCENARIO:=spl-blobs}"
 	DDR_BLOB="${DDR_BLOB:-"rk35/rk3568_ddr_1560MHz_v1.13.bin"}"
 	BL31_BLOB="${BL31_BLOB:-"rk35/rk3568_bl31_v1.32.elf"}"
+;;
 
-elif [[ $BOOT_SOC == rk3588 ]]; then
-
+ rk3588)  #CPUMAX undefined?
 	BOOT_SCENARIO="${BOOT_SCENARIO:=spl-blobs}"
 	DDR_BLOB="${DDR_BLOB:-"rk35/rk3588_ddr_lp4_2112MHz_lp5_2736MHz_v1.08.bin"}"
 	BL31_BLOB="${BL31_BLOB:-"rk35/rk3588_bl31_v1.28.elf"}"
+;;
 
-elif [[ $BOARD == rockpi-s ]]; then
-
+ rk3308)
+	CPUMAX=${CPUMAX:="1296000"}
 	BOOT_SCENARIO="${BOOT_SCENARIO:=only-blobs}"
-	BOOT_SOC=rk3308
 	DDR_BLOB="${DDR_BLOB:-"rk33/rk3308_ddr_589MHz_uart2_m1_v1.30.bin"}"
 	MINILOADER_BLOB="${MINILOADER_BLOB:-"rk33/rk3308_miniloader_v1.22.bin"}"
 	BL31_BLOB="${BL31_BLOB:-"rk33/rk3308_bl31_v2.22.elf"}"
@@ -125,64 +137,40 @@ elif [[ $BOARD == rockpi-s ]]; then
 		MINILOADER_BLOB="${MINILOADER_BLOB:-"rk33/rk3308_miniloader_sd_nand_v1.13.bin"}"
 		BL31_BLOB="${BL31_BLOB:-"rk33/rk3308_bl31_v2.10.elf"}"
 	fi
-fi
-
-case $BRANCH in
-
-	current)
-
-		declare -g KERNEL_MAJOR_MINOR="6.1" # Major and minor versions of this kernel.
-		KERNELBRANCH="branch:linux-6.1.y"
-		KERNELPATCHDIR='rockchip64-'$BRANCH
-		LINUXFAMILY=rockchip64
-		LINUXCONFIG='linux-rockchip64-'$BRANCH
-		;;
-
-	edge)
-
-		KERNELPATCHDIR='rockchip64-'$BRANCH
-		declare -g KERNEL_MAJOR_MINOR="6.3" # Major and minor versions of this kernel.
-		KERNELBRANCH="branch:linux-6.3.y"
-		LINUXFAMILY=rockchip64
-		LINUXCONFIG='linux-rockchip64-'$BRANCH
-
-		;;
-
 esac
 
 prepare_boot_configuration() {
-	if [[ $BOOT_SCENARIO == "blobless" || $BOOT_SCENARIO == "tpl-blob-atf-mainline" ]]; then
-
+  case "$BOOT_SCENARIO" in
+	blobless|tpl-blob-atf-mainline)
 		UBOOT_TARGET_MAP="BL31=bl31.elf idbloader.img u-boot.itb;;idbloader.img u-boot.itb"
 		ATFSOURCE='https://github.com/ARM-software/arm-trusted-firmware'
 		ATF_COMPILER='aarch64-linux-gnu-'
 		ATFDIR='arm-trusted-firmware'
-		ATFBRANCH='tag:v2.6'
+		ATFBRANCH='tag:lts-v2.8.8'
 		ATF_USE_GCC='> 6.3'
 		ATF_TARGET_MAP="M0_CROSS_COMPILE=arm-linux-gnueabi- PLAT=$BOOT_SOC bl31;;build/$BOOT_SOC/release/bl31/bl31.elf:bl31.elf"
 		ATF_TOOLCHAIN2="arm-linux-gnueabi-:< 10.0"
 
-		[[ $BOOT_SCENARIO == "tpl-blob-atf-mainline" ]] && UBOOT_TARGET_MAP="BL31=bl31.elf idbloader.img u-boot.itb;;idbloader.img u-boot.itb"
+		[[ $BOOT_SCENARIO == tpl-blob-atf-mainline ]] &&
+        	UBOOT_TARGET_MAP="BL31=bl31.elf idbloader.img u-boot.itb;;idbloader.img u-boot.itb"
+  ;;
 
-	elif [[ $BOOT_SCENARIO == "tpl-spl-blob" ]]; then
-
+	tpl-spl-blob)
 		UBOOT_TARGET_MAP="BL31=$RKBIN_DIR/$BL31_BLOB idbloader.img u-boot.itb;;idbloader.img u-boot.itb"
 		ATFSOURCE=''
 		ATF_COMPILE='no'
-
-	elif [[ $BOOT_SCENARIO == "spl-blobs" ]]; then
-
+  ;;
+	spl-blobs)
 		UBOOT_TARGET_MAP="BL31=$RKBIN_DIR/$BL31_BLOB spl/u-boot-spl.bin u-boot.dtb u-boot.itb;;idbloader.img u-boot.itb"
 		ATFSOURCE=''
 		ATF_COMPILE='no'
+  ;;
 
-	elif [[ $BOOT_SCENARIO == "only-blobs" ]]; then
-
+	only-blobs)
 		UBOOT_TARGET_MAP="u-boot-dtb.bin;;idbloader.bin uboot.img trust.bin"
 		ATFSOURCE=''
 		ATF_COMPILE='no'
-
-	fi
+  esac
 
 	if [[ $BOOT_SUPPORT_SPI == yes ]]; then
 
@@ -193,7 +181,6 @@ prepare_boot_configuration() {
 		fi
 
 	fi
-
 }
 
 uboot_custom_postprocess() {

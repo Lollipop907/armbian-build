@@ -16,7 +16,7 @@ function display_alert() {
 			poor_man_profiler
 		fi
 		echo -e "${extra_profiler}${3}::${1} ${2}" | sed 's/\x1b\[[0-9;]*m//g' | sed -z 's|\n|\\n|g' >&2 # remove ANSI colors and newlines
-		echo "" >&2                                                                                       # newline
+		echo "" >&2                                                                                      # newline
 		return 0
 	fi
 
@@ -30,7 +30,10 @@ function display_alert() {
 				skip_screen=1
 			fi
 			level_indicator="🐛"
-			inline_logs_color="\e[1;33m"
+			case "${background_dark_or_light}" in
+				light)	inline_logs_color="\e[1;2;33m" ;;
+				*)	inline_logs_color="\e[1;33m" ;;
+			esac
 			skip_logfile=1
 			;;
 
@@ -44,7 +47,10 @@ function display_alert() {
 
 		info)
 			level_indicator="🌱"
-			inline_logs_color="\e[0;32m"
+			case "${background_dark_or_light}" in
+				light)	inline_logs_color="\e[1;2;32m" ;;
+				*)	inline_logs_color="\e[1;32m" ;;
+			esac
 			;;
 
 		cleanup | trap)
@@ -52,7 +58,10 @@ function display_alert() {
 				skip_screen=1
 			fi
 			level_indicator="🧽"
-			inline_logs_color="\e[1;33m"
+			case "${background_dark_or_light}" in
+				light)	inline_logs_color="\e[1;2;33m" ;;
+				*)	inline_logs_color="\e[1;33m" ;;
+			esac
 			skip_logfile=1
 			;;
 
@@ -140,14 +149,25 @@ function display_alert() {
 			;;
 
 		ext)
-			level_indicator="✨" # or ✅ ?
-			inline_logs_color="\e[1;32m"
+			level_indicator="✨"
+			case "${background_dark_or_light}" in
+				light)	inline_logs_color="\e[1;2;32m" ;;
+				*)	inline_logs_color="\e[1;32m" ;;
+			esac
+			;;
+
+		change-tracking)
+			level_indicator="✅"
+			inline_logs_color="\e[1;36m" # cyan
 			;;
 
 		*)
 			level="${level:-info}" # for file logging.
 			level_indicator="🌿"
-			inline_logs_color="\e[1;37m"
+			case "${background_dark_or_light}" in
+				dark)	inline_logs_color="\e[1;37m" ;;
+				*)	inline_logs_color="\e[1;39m" ;;
+			esac
 			;;
 	esac
 
