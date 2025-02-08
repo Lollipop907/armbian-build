@@ -26,12 +26,15 @@ function prepare_rootfs_build_params_and_trap() {
 	# @TODO: well those are very... arbitrary numbers. At least when using cached rootfs, we can be more precise.
 	# predicting the size of tmpfs is hard/impossible, so would be nice to show the used size at the end so we can tune.
 	declare -i tmpfs_estimated_size=2300                     # MiB - bumped from 2000, empirically
-	[[ $BUILD_DESKTOP == yes ]] && tmpfs_estimated_size=5000 # MiB
+	[[ $BUILD_DESKTOP == yes ]] && tmpfs_estimated_size=6000 # MiB
 
 	declare use_tmpfs=no                      # by default
 	if [[ ${FORCE_USE_RAMDISK} == no ]]; then # do not use, even if it fits
 		display_alert "Not using tmpfs for rootfs" "due to FORCE_USE_RAMDISK=no" "info"
-	elif [[ ${FORCE_USE_RAMDISK} == yes || ${available_physical_memory_mib} -gt ${tmpfs_estimated_size} ]]; then # use, either force or fits
+	elif [[ ${FORCE_USE_RAMDISK} == yes ]]; then # use, either force or fits
+		use_tmpfs=yes
+		display_alert "Using tmpfs for rootfs build" "FORCE_USE_RAMDISK forced to \"yes\"" "info"
+	elif [[ ${available_physical_memory_mib} -gt ${tmpfs_estimated_size} ]]; then
 		use_tmpfs=yes
 		display_alert "Using tmpfs for rootfs build" "RAM available: ${available_physical_memory_mib}MiB > ${tmpfs_estimated_size}MiB estimated" "info"
 	else
@@ -51,16 +54,14 @@ function trap_handler_cleanup_rootfs_and_image() {
 	display_alert "Cleanup for rootfs and image" "trap_handler_cleanup_rootfs_and_image" "cleanup"
 
 	debug_tmpfs_show_usage "before cleanup of rootfs"
-
 	cd "${SRC}" || echo "Failed to cwd to ${SRC}" # Move pwd away, so unmounts work
+
 	# those will loop until they're unmounted.
 	umount_chroot_recursive "${SDCARD}" "SDCARD" || true
 	umount_chroot_recursive "${MOUNT}" "MOUNT" || true
 
 	# unmount tmpfs mounted on SDCARD if it exists. #@TODO: move to new tmpfs-utils scheme
 	mountpoint -q "${SDCARD}" && umount "${SDCARD}"
-
-	[[ $CRYPTROOT_ENABLE == yes ]] && cryptsetup luksClose "${ROOT_MAPPER}"
 
 	if [[ "${PRESERVE_SDCARD_MOUNT}" == "yes" ]]; then
 		display_alert "Preserving SD card mount" "trap_handler_cleanup_rootfs_and_image" "warn"
@@ -69,7 +70,7 @@ function trap_handler_cleanup_rootfs_and_image() {
 
 	# shellcheck disable=SC2153 # global var.
 	if [[ -b "${LOOP}" ]]; then
-		display_alert "Freeing loop" "trap_handler_cleanup_rootfs_and_image ${LOOP}" "wrn"
+		display_alert "Freeing loop" "trap_handler_cleanup_rootfs_and_image ${LOOP}" "warn"
 		free_loop_device_insistent "${LOOP}" || true
 	fi
 

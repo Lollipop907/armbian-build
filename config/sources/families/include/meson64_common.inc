@@ -16,6 +16,7 @@ SRC_LOADADDR='LOADADDR=0x1080000'
 BOOTBRANCH="${BOOTBRANCH_BOARD:-"tag:v2022.07"}"
 BOOTPATCHDIR="${BOOTPATCHDIR:-"v2022.07"}"
 OVERLAY_PREFIX='meson'
+OVERLAY_DIR="/boot/dtb/amlogic/overlay"
 
 # This is an extension method, put directly in meson64_common. A "built-in" extension if you will.
 # Bring in LibreELEC's amlogic-boot-fip repo, which is the authoritative source for FIP blobs.
@@ -38,17 +39,25 @@ GOVERNOR=${GOVERNOR:-ondemand}
 
 case $BRANCH in
 
-	legacy)
-		declare -g KERNEL_MAJOR_MINOR="6.1"
-		;;
 	current)
-		declare -g KERNEL_MAJOR_MINOR="6.6"
+		declare -g KERNEL_MAJOR_MINOR="6.12"
 		;;
 	edge)
-		declare -g KERNEL_MAJOR_MINOR="6.7"
+		declare -g KERNEL_MAJOR_MINOR="6.13"
 		;;
 
 esac
+
+# Use custom vendor driver for wireless rtl88x2cs
+# See https://github.com/armbian/build/pull/6227
+# @TODO Only use for BOARDFAMILY="jethub" devices?
+function custom_kernel_config__enable_rtl88x2cs_driver() {
+	kernel_config_modifying_hashes+=("CONFIG_RTL8822CS=m")
+	if [[ -f .config ]]; then
+		display_alert "Enabling rtl88x2cs driver in kernel config" "armbian-kernel" "wrn"
+		kernel_config_set_m CONFIG_RTL8822CS
+	fi
+}
 
 # this helper function includes postprocess for p212 and its variants.
 # $1 PATH for uboot blob repo
@@ -256,7 +265,7 @@ family_tweaks_bsp() {
 
 	mkdir -p "$destination"/etc/X11/xorg.conf.d
 	case "${BOARD}" in
-		"odroidc2" | "nanopik2-s905" | "lepotato" | "lafrite" | "khadas-vim1" | "khadas-vim2" | "aml-s9xx-box")
+		"odroidc2" | "nanopik2-s905" | "lepotato" | "sweet-potato" | "lafrite" | "khadas-vim1" | "khadas-vim2" | "aml-c400-plus" | "aml-s9xx-box")
 			cat <<- EOF > "$destination"/etc/X11/xorg.conf.d/02-driver.conf
 				Section "OutputClass"
 				    Identifier "Amlogic"
@@ -276,7 +285,7 @@ family_tweaks_bsp() {
 				EndSection
 			EOF
 			;;
-		"odroidn2" | "odroidc4" | "khadas-vim2" | "odroidhc4" | "khadas-vim3" | "khadas-vim3l" | "radxa-zero" | "radxa-zero2" | "bananapi-m2s")
+		"jethubj200" | "odroidn2" | "odroidc4" | "khadas-vim2" | "odroidhc4" | "khadas-vim3" | "khadas-vim3l" | "radxa-zero" | "radxa-zero2" | "bananapi-m2s")
 			cat <<- EOF > "$destination"/etc/X11/xorg.conf
 				Section "Device"
 				    Identifier  "DRM Graphics Acclerated"
